@@ -1,0 +1,14 @@
+{
+    // 1. 首选依然让 CMake 自动托管代码解析
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    // 2. 兜底配置：当头文件未被引入时，强制使用容器内的 GCC 编译器解析
+    "C_Cpp.default.compilerPath": "/usr/bin/g++",
+    "C_Cpp.default.cppStandard": "c++20",
+    // 3. 兜底搜索路径：保证未引用的头文件也能找到项目自身的 /Include
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/Include"
+    ],
+    "terminal.integrated.env.linux": {
+        "LANG": "C.UTF-8"
+    }
+}
