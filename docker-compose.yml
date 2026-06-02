@@ -1,0 +1,14 @@
+services:
+  editimgs-dev:
+    # 指定容器名称
+    container_name: editimgs-container
+    # 指向当前目录下的 Dockerfile 进行构建
+    build: .
+    # 将容器的 SSH 22 端口映射到宿主机的 2222 端口
+    ports:
+      - "2222:22"
+    # 将当前宿主机的项目目录挂载到容器的 /app 目录
+    volumes:
+      - .:/app
+    # 设置容器意外退出时的自动重启策略
+    restart: unless-stopped

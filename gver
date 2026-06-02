@@ -1,0 +1,701 @@
+#!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
+
+### ===== 基础配置 =====
+BRANCH="main"
+TMP_COMMIT_MSG="TemporaryStorage"
+KEEP_TAG_COUNT=20
+
+# 版本解析状态
+MAJOR=0
+MINOR=0
+PATCH=0
+
+# 发布回滚状态
+COMMIT_CREATED=false
+
+### ===== 工具函数 =====
+# 输出统一格式的时间戳。
+timestamp() {
+  date "+[%Y/%m/%d %H:%M]"
+}
+
+# 输出错误并终止脚本。
+die() {
+  echo "[gver] ERROR: $1" >&2
+  exit 1
+}
+
+### ===== 新增：PULL 功能 (强制覆盖本地) =====
+# 从远程强制同步目标分支并清理本地未追踪文件。
+cmd_pull() {
+  ensure_git_repo
+
+  local target_branch="${1:-}"
+  if [[ -z "$target_branch" ]]; then
+    target_branch=$(current_branch)
+  fi
+  
+  echo "[gver] WARNING: This will DISCARD all local changes and untracked files."
+  echo "[gver] Your local branch '$target_branch' will be IDENTICAL to remote 'origin/$target_branch'."
+  read -rp "Are you sure you want to proceed? (y/N): " confirm
+
+  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+    echo "[gver] Pull aborted."
+    return
+  fi
+
+  echo "[gver] Fetching latest changes from origin..."
+  git fetch origin --tags --prune --force || die "Fetch failed. Check network or remote URL."
+
+  git show-ref --verify --quiet "refs/remotes/origin/$target_branch" || die "Remote branch not found: origin/$target_branch"
+
+  local cur_branch
+  cur_branch=$(git branch --show-current)
+  if [[ "$cur_branch" != "$target_branch" ]]; then
+    echo "[gver] Discarding local changes before switching branches..."
+    git reset --hard HEAD || die "Reset current branch failed."
+    git clean -fd
+
+    echo "[gver] Switching to branch $target_branch..."
+    if branch_exists "$target_branch"; then
+      git switch "$target_branch" || die "Failed to switch to $target_branch"
+    else
+      git switch -c "$target_branch" --track "origin/$target_branch" || die "Failed to create tracking branch: $target_branch"
+    fi
+  fi
+
+  echo "[gver] Hard resetting to origin/$target_branch..."
+  git reset --hard "origin/$target_branch" || die "Reset failed."
+
+  echo "[gver] Cleaning untracked files and directories..."
+  git clean -fd
+
+  echo "[gver] Updating submodules..."
+  git submodule update --init --recursive || die "Submodule update failed."
+
+  echo "[gver] Pull complete. Local branch '$target_branch' is now synced with remote."
+}
+
+### ===== init 功能 =====
+# 检查并按需配置全局 Git 用户身份。
+check_git_identity() {
+  local name email
+  name=$(git config --global user.name || true)
+  email=$(git config --global user.email || true)
+
+  if [[ -z "$name" || -z "$email" ]]; then
+    echo "[gver] Git identity not configured."
+    read -rp "Enter git user.name: " name
+    read -rp "Enter git user.email: " email
+    git config --global user.name "$name"
+    git config --global user.email "$email"
+    echo "[gver] Git identity configured."
+  else
+    echo "[gver] Found git identity:"
+    echo "  user.name  = $name"
+    echo "  user.email = $email"
+    read -rp "Use this identity? (Y/N): " confirm
+
+    if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
+      read -rp "Enter git user.name: " name
+      read -rp "Enter git user.email: " email
+      git config --global user.name "$name"
+      git config --global user.email "$email"
+    fi
+  fi
+}
+
+# 检查 SSH 命令和默认密钥，缺失时生成并提示用户添加公钥。
+ensure_ssh_available() {
+  if ! command -v ssh >/dev/null 2>&1; then
+    die "ssh command not found. Please install OpenSSH."
+  fi
+
+  local ssh_dir="$HOME/.ssh"
+  local key="$ssh_dir/id_ed25519"
+  
+  if [[ ! -f "$key" ]]; then
+    echo "[gver] No SSH key found. Generating one silently..."
+
+    mkdir -p "$ssh_dir"
+    chmod 700 "$ssh_dir"
+    ssh-keygen -t ed25519 -C "$(git config user.email)" -f "$key" -N "" >/dev/null
+    
+    echo
+    echo "[gver] Copy this public key to your Git Provider (GitHub/GitLab):"
+    echo "--------------------------------------"
+    cat "${key}.pub"
+    echo "--------------------------------------"
+    echo
+    read -rp "Press Enter after adding the key..."
+  else
+    echo "[gver] Existing SSH key detected."
+  fi
+
+  echo "[gver] Testing SSH connection... (Ignore if connection is closed by remote)"
+
+  ssh -T git@github.com >/dev/null 2>&1 || true
+}
+
+# 初始化仓库、绑定远程、创建初始提交与版本标签。
+init_repo() {
+  if [[ -d ".git" ]]; then
+    if git rev-parse HEAD >/dev/null 2>&1; then
+      die "Repository already initialized and has commits. Init aborted."
+    fi
+  else
+    git init
+  fi
+
+  if git remote get-url origin >/dev/null 2>&1; then
+    die "Remote 'origin' already exists."
+  fi
+
+  check_git_identity
+  ensure_ssh_available
+
+  echo
+  read -rp "Enter repository SSH URL (e.g. git@github.com:USER/REPO.git): " repo
+  
+  if [[ ! "$repo" =~ ^git@.*:.*\.git$ ]]; then
+    die "Invalid SSH URL format. Should be like git@<domain>:<user>/<repo>.git"
+  fi
+
+  git remote add origin "$repo"
+  echo "[gver] Remote origin added."
+  echo "[gver] Preparing repository..."
+
+  create_gitignore_if_missing
+
+  echo "[gver] Adding files..."
+  git add -A
+
+  echo "[gver] Creating first commit..."
+  git commit -m "$(timestamp) Create a new repository"
+
+  local tag="v0.00.00"
+  git tag -a "$tag" -m "$(timestamp) Create a new repository"
+  git branch -M "$BRANCH"
+
+  echo "[gver] Pushing to origin..."
+  if ! git push -u origin "$BRANCH"; then
+    if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+      echo
+      echo "[gver] Remote repository is not empty! Integrating remote history..."
+      
+      git tag -d "$tag" >/dev/null 2>&1 || true
+      
+      if git pull origin "$BRANCH" --allow-unrelated-histories --rebase; then
+        echo "[gver] Integration successful. Re-applying tag..."
+        git tag -a "$tag" -m "$(timestamp) Create a new repository"
+        
+        echo "[gver] Retrying push..."
+        git push -u origin "$BRANCH" || die "Push branch failed after integration"
+      else
+        echo
+        echo "[gver] ERROR: File conflict detected (e.g., both local and remote have a README.md)."
+        echo "[gver] Please resolve the conflicts manually, run 'git rebase --continue', and then push."
+        die "Init paused for manual conflict resolution."
+      fi
+    else
+      die "Push branch failed (Network, permission, or invalid repo URL)."
+    fi
+  fi
+
+  git push origin "$tag" || die "Push tag failed"
+
+  echo
+  echo "[gver] Repository initialized successfully."
+  echo "[gver] Version: $tag"
+}
+
+# 确认当前目录位于 Git 工作区内。
+ensure_git_repo() {
+  git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository (run ./gver init first)"
+}
+
+# 获取当前所在的真实分支。
+current_branch() {
+  local cur
+  cur=$(git branch --show-current)
+  [[ -n "$cur" ]] || die "Detached HEAD is not supported. Please checkout a branch first."
+  echo "$cur"
+}
+
+# 确认当前工作区没有待提交内容。
+ensure_clean_worktree() {
+  if [[ -n "$(git status --porcelain)" ]]; then
+    die "Working tree is not clean. Please run ./gver push ... first or commit/stash manually."
+  fi
+}
+
+# 解析用户输入的版本标签。
+normalize_tag() {
+  local target="$1"
+  [[ -n "$target" ]] || die "Version required (e.g. 1.01.00)"
+  if [[ "$target" == v* ]]; then
+    echo "$target"
+  else
+    echo "v$target"
+  fi
+}
+
+# 获取当前最新版本标签。
+latest_tag() {
+  git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1
+}
+
+# 判断远程仓库是否存在。
+has_origin() {
+  git remote get-url origin >/dev/null 2>&1
+}
+
+# 判断远程标签是否存在。
+remote_tag_exists() {
+  local tag="$1"
+  git ls-remote --exit-code --refs --tags origin "$tag" >/dev/null 2>&1
+}
+
+# 判断本地分支是否存在。
+branch_exists() {
+  local branch="$1"
+  git show-ref --verify --quiet "refs/heads/$branch"
+}
+
+# 判断远程分支是否存在。
+remote_branch_exists() {
+  local branch="$1"
+  git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1
+}
+
+# 获取当前未解决冲突数量。
+conflict_count() {
+  git diff --name-only --diff-filter=U | wc -l | tr -d '[:space:]'
+}
+
+# 等待用户处理合并冲突。
+wait_for_conflicts() {
+  local count
+  count=$(conflict_count)
+  while [[ "$count" != "0" ]]; do
+    echo "[gver] Handling merge conflicts...($count Conflict)"
+    read -r
+    count=$(conflict_count)
+  done
+}
+
+# 选择版本标签对应的显示分支。
+branch_for_commit() {
+  local commit="$1"
+  local cur branches branch
+  cur=$(git branch --show-current || true)
+  mapfile -t branches < <(git branch --contains "$commit" --format='%(refname:short)' 2>/dev/null || true)
+  for branch in "${branches[@]}"; do
+    [[ -n "$cur" && "$branch" == "$cur" ]] && { echo "$branch"; return; }
+  done
+  for branch in "${branches[@]}"; do
+    [[ "$branch" == "$BRANCH" ]] && { echo "$branch"; return; }
+  done
+  if ((${#branches[@]} > 0)); then
+    echo "${branches[0]}"
+  else
+    echo "-"
+  fi
+}
+
+# 格式化版本标签显示信息。
+format_tag_line() {
+  local tag="$1"
+  local commit branch date subject
+  commit=$(git rev-list -n 1 "$tag")
+  branch=$(branch_for_commit "$commit")
+  date=$(git log -1 --format='%ad' --date=format:'%Y/%m/%d %H:%M' "$tag")
+  subject=$(git for-each-ref --format='%(subject)' "refs/tags/$tag")
+  echo "[$branch] $tag  [$date] $subject"
+}
+
+# 解析版本标签到全局版本号变量。
+parse_version() {
+  local v=${1#v}
+  IFS='.' read -r MAJOR MINOR PATCH <<< "$v"
+}
+
+# 按项目版本格式输出版本标签。
+format_version() {
+  printf "v%d.%02d.%02d" "$1" "$2" "$3"
+}
+
+# 标签创建失败时回滚本次自动提交。
+rollback_commit() {
+  echo "[gver] Rolling back tag (and commit if newly created)..."
+  if [[ "$COMMIT_CREATED" == "true" ]]; then
+    git reset --soft HEAD~1 || true
+    git reset || true
+  fi
+}
+
+# 缺失 .gitignore 时创建默认忽略规则。
+create_gitignore_if_missing() {
+  if [[ -f ".gitignore" ]]; then
+    echo "[gver] .gitignore already exists"
+    return
+  fi
+  echo "[gver] Creating default .gitignore"
+  cat > .gitignore <<EOF
+build/
+bin/
+out/
+dist/
+
+*.o
+*.obj
+*.so
+*.a
+*.dll
+*.exe
+
+*.log
+
+.idea/
+
+.DS_Store
+Thumbs.db
+
+*.tmp
+*.swp
+EOF
+}
+
+### ===== 显示功能 =====
+# 显示所有版本标签及其说明。
+cmd_show() {
+  ensure_git_repo
+  local tag
+  while IFS= read -r tag; do
+    format_tag_line "$tag"
+  done < <(git for-each-ref --sort=creatordate --format='%(refname:short)' refs/tags)
+}
+
+# 显示当前 HEAD 对应的版本标签或短提交号。
+cmd_current() {
+  ensure_git_repo
+  local tag commit branch date subject
+  branch=$(current_branch)
+  tag=$(git describe --tags --exact-match 2>/dev/null || true)
+  if [[ -n "$tag" ]]; then
+    format_tag_line "$tag"
+    return
+  fi
+  commit=$(git rev-parse --short HEAD)
+  date=$(git log -1 --format='%ad' --date=format:'%Y/%m/%d %H:%M' HEAD)
+  subject=$(git log -1 --format='%s' HEAD)
+  echo "[$branch] $commit  [$date] $subject"
+}
+
+### ===== push 核心逻辑 =====
+# 清理旧版本标签并同步远程标签状态。
+cmd_clean() {
+  ensure_git_repo
+
+  if has_origin; then
+    git fetch origin --tags --prune --force || die "Fetch tags failed"
+  fi
+
+  local tag
+  local kept=()
+  local old=()
+  mapfile -t tags < <(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags)
+
+  for tag in "${tags[@]}"; do
+    if [[ "$tag" =~ ^v?[0-9]+\.[0-9]{2}\.00$ && "${#kept[@]}" -lt "$KEEP_TAG_COUNT" ]]; then
+      kept+=("$tag")
+    else
+      old+=("$tag")
+    fi
+  done
+
+  if ((${#old[@]} == 0)); then
+    echo "[gver] Clean skipped. Kept ${#kept[@]} major/minor tags, no patch or old tags found."
+    return
+  fi
+
+  for tag in "${old[@]}"; do
+    git tag -d "$tag" >/dev/null 2>&1 || true
+    if has_origin && remote_tag_exists "$tag"; then
+      git push origin ":refs/tags/$tag" >/dev/null || die "Delete remote tag failed: $tag"
+    fi
+  done
+
+  if has_origin; then
+    for tag in "${kept[@]}"; do
+      git push origin "refs/tags/$tag:refs/tags/$tag" >/dev/null || die "Sync kept tag failed: $tag"
+    done
+  fi
+
+  echo "[gver] Clean complete. Kept ${#kept[@]} major/minor tags, removed ${#old[@]} patch or old tags."
+}
+
+# 恢复指定版本快照到当前分支工作区。
+cmd_checkout() {
+  ensure_git_repo
+
+  local target branch
+  target=$(normalize_tag "$1")
+  branch=$(current_branch)
+
+  ensure_clean_worktree
+
+  git rev-parse --verify "$target^{commit}" >/dev/null 2>&1 || die "Tag $target not found"
+
+  mapfile -t removed < <(git diff --name-only --diff-filter=A "$target" HEAD -- .)
+  git restore --source "$target" --staged --worktree -- . || die "Restore failed"
+
+  for path in "${removed[@]}"; do
+    if [[ -e "$path" || -L "$path" ]]; then
+      git rm -f -- "$path" >/dev/null || die "Remove stale file failed: $path"
+    fi
+  done
+
+  if [[ -f ".gitmodules" ]]; then
+    git submodule update --init --recursive || die "Submodule update failed"
+  fi
+
+  echo "[gver] Checkout complete. Branch remains '$branch'; working tree now matches '$target'."
+  echo "[gver] Review changes, then run ./gver push +++ \"message\" to publish."
+}
+
+# 切换或创建指定分支。
+cmd_switch() {
+  ensure_git_repo
+  ensure_clean_worktree
+
+  local branch="$1"
+  [[ -n "$branch" ]] || die "Branch name required"
+
+  if branch_exists "$branch"; then
+    git switch "$branch" || die "Switch branch failed: $branch"
+  elif remote_branch_exists "$branch"; then
+    git fetch origin --tags --prune --force || die "Fetch failed. Check network or remote URL."
+    git switch -c "$branch" --track "origin/$branch" || die "Create tracking branch failed: $branch"
+  else
+    git switch -c "$branch" || die "Create branch failed: $branch"
+  fi
+
+  echo "[gver] Switched to branch: $branch"
+}
+
+# 压缩合并指定分支。
+cmd_merge() {
+  ensure_git_repo
+  ensure_clean_worktree
+
+  local target source cur confirm count
+  cur=$(current_branch)
+
+  if [[ $# -eq 1 ]]; then
+    [[ "$cur" == "$BRANCH" ]] || die "Single-branch merge is only allowed on $BRANCH"
+    target="$cur"
+    source="$1"
+    read -rp "[gver] Merge '$source' into '$target'? (y/N): " confirm
+    [[ "$confirm" == "y" || "$confirm" == "Y" ]] || { echo "[gver] Merge aborted."; return; }
+  elif [[ $# -eq 2 ]]; then
+    target="$1"
+    source="$2"
+    [[ "$source" != "$BRANCH" ]] || die "Invalid merge input. Source branch cannot be $BRANCH."
+  else
+    die "Usage: ./gver merge <branch> or ./gver merge <target> <source>"
+  fi
+
+  branch_exists "$target" || die "Target branch not found: $target"
+  branch_exists "$source" || die "Source branch not found: $source"
+
+  git switch "$target" || die "Switch target branch failed: $target"
+
+  if ! git merge --squash "$source"; then
+    wait_for_conflicts
+  fi
+
+  count=$(conflict_count)
+  [[ "$count" == "0" ]] || die "Merge conflicts remain: $count"
+
+  git add -A
+  if git diff --cached --quiet; then
+    echo "[gver] Merge complete. No changes to commit."
+    return
+  fi
+
+  git commit -m "$(timestamp) Merge $source into $target" || die "Merge commit failed"
+  echo "[gver] Merge complete: $source -> $target"
+}
+
+# 删除指定分支并同步删除远程分支。
+cmd_branch() {
+  ensure_git_repo
+  ensure_clean_worktree
+
+  local branch="$1"
+  [[ -n "$branch" ]] || die "Branch name required"
+  [[ "$branch" != "$BRANCH" ]] || die "Cannot delete main branch: $BRANCH"
+  if ! branch_exists "$branch" && ! remote_branch_exists "$branch"; then
+    die "Branch not found: $branch"
+  fi
+
+  if branch_exists "$branch" && [[ "$(current_branch)" == "$branch" ]]; then
+    branch_exists "$BRANCH" || die "Main branch not found: $BRANCH"
+    git switch "$BRANCH" || die "Switch to $BRANCH failed"
+  fi
+
+  if branch_exists "$branch" && ! git merge-base --is-ancestor "$branch" "$BRANCH"; then
+    die "Branch $branch is not fully merged into $BRANCH. Please merge it first."
+  fi
+
+  if branch_exists "$branch"; then
+    git branch -d "$branch" || die "Delete local branch failed: $branch"
+  fi
+
+  if has_origin && remote_branch_exists "$branch"; then
+    git push origin --delete "$branch" || die "Delete remote branch failed: $branch"
+  fi
+
+  echo "[gver] Branch deleted: $branch"
+}
+
+# 根据发布级别提交当前快照、覆盖远程分支并创建标签。
+do_release() {
+  local mode="$1"
+  local msg="$2"
+  local branch
+  
+  COMMIT_CREATED=false 
+
+  [[ -z "$msg" ]] && die "Commit message required"
+
+  ensure_git_repo
+  branch=$(current_branch)
+
+  local cur
+  cur=$(latest_tag)
+  if [[ -z "$cur" ]]; then
+    echo "[gver] No existing tag found. Assuming v0.00.00"
+    cur="v0.00.00"
+  fi
+
+  parse_version "$cur"
+
+  case "$mode" in
+    "+")   MAJOR=$((10#$MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    "++")  MINOR=$((10#$MINOR + 1)); PATCH=0 ;;
+    "+++") PATCH=$((10#$PATCH + 1)) ;;
+    *) die "Invalid push mode. Use +, ++, or +++" ;;
+  esac
+
+  local new_tag
+  new_tag=$(format_version "$MAJOR" "$MINOR" "$PATCH")
+
+  if git rev-parse --verify "refs/tags/$new_tag" >/dev/null 2>&1; then
+    die "Tag $new_tag already exists locally"
+  fi
+
+  if has_origin && remote_tag_exists "$new_tag"; then
+    die "Remote tag $new_tag already exists"
+  fi
+  
+  echo "[gver] Releasing $new_tag on $branch"
+
+  git add -A
+  
+  if ! git diff --cached --quiet; then
+    git commit -m "$(timestamp) $msg" || die "Commit failed"
+    COMMIT_CREATED=true
+  else
+    echo "[gver] No changes to commit, tagging current HEAD"
+  fi
+  
+  git tag -a "$new_tag" -m "$(timestamp) $msg" || {
+    rollback_commit
+    die "Tag creation failed"
+  }
+
+  if ! has_origin; then
+    die "Remote origin not found"
+  fi
+
+  if ! git push --force-with-lease origin "$branch:$branch" "$new_tag"; then
+    echo 
+    echo "[gver] WARNING: Push to remote failed (network issue or permission denied)."
+    echo "[gver] The commit and tag '$new_tag' were created successfully LOCALLY."
+    echo "[gver] Please fix the network and manually run: git push --force-with-lease origin $branch:$branch $new_tag"
+    die "Remote push failed. Local changes kept safe."
+  fi
+  
+  echo "[gver] Release success: $new_tag"
+}
+
+### ===== 命令分发 =====
+cmd="${1:-}"
+case "$cmd" in
+  show)
+    cmd_show
+    ;;
+  current)
+    cmd_current
+    ;;
+  push)
+    [[ $# -ge 3 ]] || die "Usage: ./gver push +|++|+++ <message>"
+    mode="$2"
+    shift 2
+    msg="$*"
+    do_release "$mode" "$msg"
+    ;;
+  switch)
+    cmd_switch "${2:-}"
+    ;;
+  merge)
+    shift
+    cmd_merge "$@"
+    ;;
+  branch)
+    cmd_branch "${2:-}"
+    ;;
+  checkout)
+    cmd_checkout "${2:-}"
+    ;;
+  init)
+    init_repo
+    ;;
+  pull)
+    cmd_pull "${2:-}"
+    ;;
+  clean)
+    cmd_clean
+    ;;
+  *)
+    cat <<EOF
+gver - Git Version Helper
+
+Usage:
+  ./gver init                 初始化git仓库并生成初始配置
+  ./gver pull [branch]        从远程强制同步当前分支或指定分支 (覆盖本地所有修改和未追踪文件)
+  ./gver show                 查询版本号记录 (Tags)
+  ./gver current              查询当前所处版本
+  ./gver clean                清理旧版本标签，仅保留最新10条
+  ./gver switch <branch>      切换或创建分支
+  ./gver merge <branch>       将分支压缩合并到当前主分支
+  ./gver merge <target> <src> 将源分支压缩合并到目标分支
+  ./gver branch <branch>      删除本地和远程分支
+  ./gver push +   <message>   提交推送内容，并主版本号 (Major) +1
+  ./gver push ++  <message>   提交推送内容，并次版本号 (Minor) +1
+  ./gver push +++ <message>   提交推送内容，并补丁号 (Patch) +1
+  ./gver checkout <version>   恢复对应版本快照到当前分支 (如 1.01.00)
+
+Examples:
+  ./gver push + "MajorRevision"
+  ./gver pull log
+  ./gver switch log
+  ./gver merge main log
+  ./gver checkout 1.01.00
+EOF
+    ;;
+esac
