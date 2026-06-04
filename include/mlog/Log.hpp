@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <source_location>
+#include <format>
 
 namespace ei::mlog
 {
@@ -29,6 +30,13 @@ namespace ei::mlog
 
         void write(const LogLevel &level, const std::string &message, const std::source_location &location);
 
+        template<typename...Args>
+        static inline void write(const LogLevel &level, const std::source_location &location, std::format_string<Args...> fmt, Args &&...args)
+        {
+            std::string message = std::format(fmt, std::forward<Args>(args)...);
+            getInstance().write(level, message, location);
+        }
+
     private:
         LogOptions _opts;
         std::shared_ptr<Pattern> _pattern;
@@ -36,5 +44,10 @@ namespace ei::mlog
         std::unique_ptr<Pipeline> _pipeline;
     };
 }
+
+#define LOG_HELPER(level, ...) ei::mlog::Log::write(level, std::source_location::current(), __VA_ARGS__)
+
+#define ilog(...) LOG_HELPER(ei::mlog::LogLevel::INFO, __VA_ARGS__)
+#define elog(...) LOG_HELPER(ei::mlog::LogLevel::ERROR, __VA_ARGS__)
 
 #endif // LOG_HPP
