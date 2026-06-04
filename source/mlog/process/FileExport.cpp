@@ -2,6 +2,7 @@
 #include "mlog/types/ELog.hpp"
 
 #include <filesystem>
+#include <iostream>
 
 namespace ei::mlog
 {
@@ -15,25 +16,52 @@ namespace ei::mlog
         }
     }
 
-    void FileExport::importLog(const char *path)
+    FileExport::~FileExport()
     {
-        if (std::filesystem::exists(path))
-            std::filesystem::create_directories(path);
-
-        _logDirPath = path;
+        for(auto& pair : _ofsMap)
+        {
+            if(pair.second.is_open())
+            {
+                pair.second.flush();
+                pair.second.close();
+            }
+        }
     }
 
-    void FileExport::exportLog(const LogPattern &pattern, LogBuffer &logBuffer)
+    void FileExport::configure(const LogOptions &opts)
+    {
+        if (_logDirPath == opts.logDirPath)
+            return;
+
+        _logDirPath = opts.logDirPath;
+
+        try
+        {
+            if(!_logDirPath.empty())
+                std::filesystem::create_directories(_logDirPath);
+        }
+        catch(const std::filesystem::filesystem_error& e)
+        {
+            std::cerr << "[mlog] Failed to create directories: " << e.what() << std::endl;
+        }
+        
+    }
+
+    void FileExport::exportFile(const LogPattern &pattern, LogBuffer &logBuffer)
     {
         std::string_view leavel = GetLeavelToString(pattern.level);
-        auto& ofs = _ofsMap[std::string(leavel)];
+        std::string key(leavel);
 
-        if(!ofs.is_open())
+        auto &ofs = _ofsMap[key];
+
+        if (!ofs.is_open())
         {
-            auto fileName = _logDirPath + std::string(leavel) + ".log";
-            ofs.open(fileName, std::ios::out | std::ios::app);
+            std::filesystem::path dirPath(_logDirPath);
+            std::filesystem::path filePath = dirPath / (key + ".log");
 
-            if(!ofs.is_open())
+            ofs.open(filePath, std::ios::out | std::ios::app);
+
+            if (!ofs.is_open())
                 return;
         }
 

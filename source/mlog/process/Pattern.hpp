@@ -26,16 +26,25 @@ namespace ei::mlog
         }
     };
 
+    class LogOptions;
+
     class Pattern
     {
     public:
-        Pattern() = default;
+         Pattern() = default;
         ~Pattern() = default;
 
-        void setPattern(const char *fmt);
+        Pattern(const Pattern&) = delete;
+        Pattern& operator=(const Pattern&) = delete;
+
+        Pattern(Pattern&&) = delete;
+        Pattern& operator=(Pattern&&) = delete;
+
+        void configure(const LogOptions& opts);
         void formatTo(const LogPattern &pattern, LogBuffer &logBuffer);
 
     private:
+        std::string _currentPatternFmt;
         std::vector<std::unique_ptr<IFormatOP>> _patternPipelines;
     };
 }

@@ -9,14 +9,19 @@
 
 namespace ei::mlog
 {
+    class LogOptions;
+
     class FileExport
     {
     public:
         FileExport() = default;
-        ~FileExport() = default;
+        ~FileExport();
 
-        void importLog(const char *path);
-        void exportLog(const LogPattern &pattern, LogBuffer &logBuffer);
+        FileExport(const FileExport&) = delete;
+        FileExport& operator=(const FileExport&) = delete;
+
+        void configure(const LogOptions& opts);
+        void exportFile(const LogPattern &pattern, LogBuffer &logBuffer);
 
     private:
         std::string _logDirPath;

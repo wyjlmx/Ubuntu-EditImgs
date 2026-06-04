@@ -127,11 +127,16 @@ namespace ei::mlog
         };
     }
 
-    void Pattern::setPattern(const char *fmt)
+    void Pattern:: configure(const LogOptions& opts)
     {
+        if(_currentPatternFmt == opts.patternFmt)
+            return;
+
+        _currentPatternFmt = opts.patternFmt;
+
         _patternPipelines.clear();
 
-        std::string_view pattern(fmt);
+        std::string_view pattern(_currentPatternFmt);
         for (size_t i = 0; i < pattern.size();)
         {
             if (pattern[i] == '%')
