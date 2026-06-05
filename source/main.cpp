@@ -1,5 +1,5 @@
-#define DoMain
-// #define DoTest
+// #define DoMain
+#define DoTest
 
 #ifdef DoMain
 int main()

@@ -8,13 +8,23 @@
 #include <source_location>
 #include <format>
 
+#ifdef _WIN32
+    #ifdef BUILDING_MLOG
+        #define MLOG_API __declspec(dllexport)
+    #else
+        #define MLOG_API __declspec(dllimport)
+    #endif
+#else
+    #define MLOG_API __attribute__((visibility("default")))
+#endif
+
 namespace ei::mlog
 {
     class Pattern;
     class FileExport;
     class Pipeline;
 
-    class Log
+    class MLOG_API Log
     {
     public:
         Log();
