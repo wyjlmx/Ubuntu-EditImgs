@@ -34,7 +34,7 @@ set(PROJECT_PUBLIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 # 7. 引入子目录
 add_subdirectory(source)
 
-# 8.
+# 8.使生成的可执行文件/动态库在运行时能够通过“相对路径”找到同目录下的依赖库，从而实现跨机器的便携式部署（无需将库拷贝到系统的 /usr/lib 等目录下）。
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
