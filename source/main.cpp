@@ -7,7 +7,7 @@ int main()
     std::cout << "hello, world" << std::endl;
 
     ilog("INFO log printf");
-    ilog("INFO Value: {}", "hhh");
+    ilog("INFO Value: {}", "good boys");
 
     return 0;
 }
