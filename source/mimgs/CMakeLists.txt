@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+
 set(MIMAGES_OUTPUT_DIR "${CMAKE_BINARY_DIR}/lib" CACHE PATH "Output directory for mlog library")
 
 # 1. 递归寻找当前目录 (source/mlog) 内的源文件与内部私有头文件
@@ -11,23 +13,29 @@ file(GLOB_RECURSE MIMAGES_SOURCES
 )
 
 # 2. 声明共享库目标 "mlog" 
-add_library(mimages SHARED
+add_library(mimgs SHARED
     ${MIMAGES_SOURCES}
 )
 
 # 3. 严格区分：公共（对外）和私有（内部）头文件目录
-target_include_directories(mimages
+target_include_directories(mimgs
     PUBLIC 
         # 对外公开：指向全局 include 目录
         "${PROJECT_PUBLIC_INCLUDE_DIR}"
     PRIVATE 
-        # 内部私有：指向当前 source/mimages 目录
+        # 内部私有：指向当前 source/mimgs 目录
         "${CMAKE_CURRENT_SOURCE_DIR}"
+        ${OpenCV_INCLUDE_DIRS}
+)
+
+target_link_libraries(mimgs 
+    PRIVATE 
+        ${OpenCV_LIBS}
 )
 
 # 4. 设置生成的 .so 属性
-set_target_properties(mimages PROPERTIES
-    OUTPUT_NAME "mimages"                     
+set_target_properties(mimgs PROPERTIES
+    OUTPUT_NAME "mimgs"                     
     # VERSION ${PROJECT_VERSION}              # 对应 1.0.0
     # SOVERSION ${PROJECT_VERSION_MAJOR}      # 对应 1
 

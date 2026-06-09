@@ -1,7 +1,7 @@
 #ifndef IMAGES_HPP
 #define IMAGES_HPP
 
-namespace ei::mimages
+namespace ei::mimgs
 {
     class Images
     {

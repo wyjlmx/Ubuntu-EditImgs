@@ -21,7 +21,7 @@ namespace ei::mimgs
     enum class PixelFormat
     {
         RGBA8888,
-        RGB8888
+        RGB888
     };
 
     // 内部图像基础资源
@@ -46,8 +46,20 @@ namespace ei::mimgs
         ImageAsset &operator=(ImageAsset &&) noexcept = default;
     };
 
+    // 所有算子参数的基类
+    struct OperatorParams
+    {
+        std::string outputKey;
+        virtual ~OperatorParams() = default;
+        virtual void Validate() const
+        {
+            if (outputKey.empty())
+                throw ProcessingException("output_key is empty");
+        }
+    };
+
     // 内部共享上下文
-    class ImageContext
+    class IContext
     {
     private:
         std::unordered_map<std::string, std::shared_ptr<ImageAsset>> _assets;
@@ -71,34 +83,22 @@ namespace ei::mimgs
         }
     };
 
-    // 所有算子参数的基类
-    struct OperatorParams
-    {
-        std::string output_key;
-        virtual ~OperatorParams() = default;
-        virtual void Validate() const
-        {
-            if (output_key.empty())
-                throw ProcessingException("output_key is empty");
-        }
-    };
-
     // 统一算子契约接口
-    class IImageOperator
+    class IOperator
     {
     public:
-        virtual ~IImageOperator() = default;
-        virtual std::string_view GetName() const noexcept = 0;
-        virtual void Execute(ImageContext &context, const OperatorParams &params) = 0;
+        virtual ~IOperator() = default;
+        virtual std::string_view getName() const noexcept = 0;
+        virtual void execute(IContext &context, const IOperator &params) = 0;
 
     protected:
         template <typename T>
-        const T &CastParams(const OperatorParams &params) const
+        const T &CastParams(const IOperator &params) const
         {
             const auto *derived = dynamic_cast<const T *>(&params);
             if (!derived)
             {
-                throw ImageProcessingException(std::string(GetName()) + ": Parameter mismatch.");
+                throw ProcessingException(std::string(getName()) + ": Parameter mismatch.");
             }
             return *derived;
         }
