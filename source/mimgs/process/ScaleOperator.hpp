@@ -21,7 +21,7 @@ namespace ei::mimgs
         ScaleOperator() = default;
 
         std::string_view getName() const noexcept override;
-        void execute(IContext &context, const IOperator &params) override;
+        void execute(IContext &context, const OperatorParams &params) override;
     };
 }
 

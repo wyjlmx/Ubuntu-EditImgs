@@ -18,7 +18,7 @@ namespace ei::mimgs
         return "rotate";
     }
 
-    void RotateOperator::execute(IContext &context, const IOperator &params)
+    void RotateOperator::execute(IContext &context, const OperatorParams &params)
     {
         const auto &rotateParams = CastParams<RotateParams>(params);
         rotateParams.Validate();

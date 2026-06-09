@@ -19,7 +19,7 @@ namespace ei::mimgs
         return "puzzle";
     }
 
-    void PuzzleOperator::execute(IContext &context, const IOperator &params)
+    void PuzzleOperator::execute(IContext &context, const OperatorParams &params)
     {
         const auto &puzzleParams = CastParams<PuzzleParams>(params);
         puzzleParams.Validate();

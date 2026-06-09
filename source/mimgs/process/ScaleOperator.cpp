@@ -20,7 +20,7 @@ namespace ei::mimgs
             throw ProcessingException("Scale: invalid size.");
     }
 
-    void ScaleOperator::execute(IContext &context, const IOperator &params)
+    void ScaleOperator::execute(IContext &context, const OperatorParams &params)
     {
         const auto &scaleParams = CastParams<ScaleParams>(params);
         scaleParams.Validate();

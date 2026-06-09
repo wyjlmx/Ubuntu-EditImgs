@@ -89,11 +89,11 @@ namespace ei::mimgs
     public:
         virtual ~IOperator() = default;
         virtual std::string_view getName() const noexcept = 0;
-        virtual void execute(IContext &context, const IOperator &params) = 0;
+        virtual void execute(IContext &context, const OperatorParams &params) = 0;
 
     protected:
         template <typename T>
-        const T &CastParams(const IOperator &params) const
+        const T &CastParams(const OperatorParams &params) const
         {
             const auto *derived = dynamic_cast<const T *>(&params);
             if (!derived)
