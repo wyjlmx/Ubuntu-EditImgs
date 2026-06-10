@@ -13,6 +13,7 @@ namespace ei::mimgs
         size_t tarHeight{0};
 
         void Validate() const override;
+        std::string GetCacheSignature() const override;
     };
 
     class ScaleOperator : public IOperator

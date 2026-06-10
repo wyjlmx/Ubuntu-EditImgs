@@ -21,6 +21,7 @@ namespace ei::mimgs
         std::array<uint8_t, 4> bgColor{0, 0, 0, 0};
 
         void Validate() const override;
+        std::string GetCacheSignature() const override;
     };
 
     class PuzzleOperator : public IOperator

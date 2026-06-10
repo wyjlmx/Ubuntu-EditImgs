@@ -11,6 +11,7 @@ namespace ei::mimgs
         float angle{0.0f};
 
         void Validate() const override;
+        std::string GetCacheSignature() const override;
     };
 
     class RotateOperator : public IOperator

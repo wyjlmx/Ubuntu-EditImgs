@@ -14,6 +14,23 @@ namespace ei::mimgs
             throw ProcessingException("Scale: invalid size.");
     }
 
+    std::string PuzzleParams::GetCacheSignature() const
+    {
+        // 1. 在栈上进行临时极简拼接（仅作为哈希源，不直接存入 Map）
+        std::string raw;
+        for (const auto &key : inputKeys)
+            raw += key + ",";
+        raw += std::to_string(rows) + "_" + std::to_string(cols) + "_" + std::to_string(cellWidth) + "_" + std::to_string(cellHeight) + "_" + std::to_string(padding) + "_" + std::to_string(bgColor[0]) + "_" + std::to_string(bgColor[1]) + "_" + std::to_string(bgColor[2]) + "_" + std::to_string(bgColor[3]);
+
+        // 2. 使用 std::hash 压缩为 size_t (64位整数)
+        size_t hashVal = std::hash<std::string>{}(raw);
+
+        // 3. 转化为固定长度的 16 进制字符串返回 (形如 "pz_f3a7c21e")
+        char buf[32];
+        std::snprintf(buf, sizeof(buf), "pz_%zx", hashVal);
+        return std::string(buf);
+    }
+
     std::string_view PuzzleOperator::getName() const noexcept
     {
         return "puzzle";

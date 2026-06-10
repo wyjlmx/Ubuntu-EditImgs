@@ -13,6 +13,11 @@ namespace ei::mimgs
             throw ProcessingException("Scale: inputKey empty.");
     }
 
+    std::string RotateParams::GetCacheSignature() const
+    {
+        return "rotate_" + inputKey + "_" + std::to_string(angle);
+    }
+
     std::string_view RotateOperator::getName() const noexcept
     {
         return "rotate";

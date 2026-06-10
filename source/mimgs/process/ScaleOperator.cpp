@@ -20,6 +20,11 @@ namespace ei::mimgs
             throw ProcessingException("Scale: invalid size.");
     }
 
+    std::string ScaleParams::GetCacheSignature() const
+    {
+        return "scale_" + inputKey + "_" + std::to_string(tarWidth) + "x" + std::to_string(tarHeight);
+    }
+
     void ScaleOperator::execute(IContext &context, const OperatorParams &params)
     {
         const auto &scaleParams = CastParams<ScaleParams>(params);

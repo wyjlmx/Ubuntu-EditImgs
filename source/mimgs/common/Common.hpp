@@ -56,6 +56,8 @@ namespace ei::mimgs
             if (outputKey.empty())
                 throw ProcessingException("output_key is empty");
         }
+
+        virtual std::string GetCacheSignature() const = 0;
     };
 
     // 内部共享上下文
