@@ -21,8 +21,7 @@ namespace ei::mimgs
         Pipeline(const Pipeline &) = delete;
         Pipeline &operator=(const Pipeline &) = delete;
 
-        void addStep(std::string_view opName, std::unique_ptr<OperatorParams> params);
-        const std::vector<PipelineStep> &getSteps() const noexcept;
+        void execute(IContext &context, const PipelineParams &params);
     };
 }
 

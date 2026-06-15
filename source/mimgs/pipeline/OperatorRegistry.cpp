@@ -22,7 +22,7 @@ namespace ei::mimgs
 
     IOperator *OperatorRegistry::getOperator(std::string_view name) const
     {
-        std::unique_lock<std::shared_mutex> lock(_mutex);
+        std::shared_lock<std::shared_mutex> lock(_mutex);
 
         auto it = _registry.find(std::string(name));
         if(it != _registry.end())

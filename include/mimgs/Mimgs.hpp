@@ -12,6 +12,7 @@
 #endif
 
 #include "mimgs/common/Common.hpp"
+#include "mimgs/interfaces/IImages.hpp"
 
 #include <vector>
 #include <string>
@@ -28,11 +29,19 @@ namespace ei::mimgs
         std::string GetCacheSignature() const override;
     };
 
-    class Images
+    class MIMGS_API Images : public IImages
     {
     public:
         Images() = default;
-        ~Images() = default;
+        ~Images() override;
+
+        bool execute(const PipelineParams &params, const std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &inputs, std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &outputs) override;
+        void clearCache() override;
+        void setCacheCapacity(size_t capacity) override;
+
+    private:
+        class Impl;
+        std::unique_ptr<Impl> _impl;
     };
 }
 

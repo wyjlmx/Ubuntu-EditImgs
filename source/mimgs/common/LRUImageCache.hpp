@@ -40,6 +40,7 @@ namespace ei::mimgs
     private:
         size_t _capacity;
         std::mutex _mutex;
+        
         std::list<std::pair<std::string, std::shared_ptr<ImageAsset>>> _list;
         std::unordered_map<std::string, decltype(_list.begin())> _map;
     };
