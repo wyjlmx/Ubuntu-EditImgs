@@ -6,6 +6,8 @@
 
 namespace ei::mimgs
 {
+    struct PipelineParams;
+
     struct PipelineStep
     {
         std::string opName;
