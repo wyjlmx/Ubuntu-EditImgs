@@ -27,20 +27,12 @@ namespace ei::mimgs
         LRUImageCache(const LRUImageCache &) = delete;
         LRUImageCache &operator=(const LRUImageCache &) = delete;
 
-        void evict()
-        {
-            while(_list.size() > _capacity)
-            {
-                auto last = _list.back();
-                _map.erase(last.first);
-                _list.pop_back();
-            }
-        }
+        void evict();
 
     private:
         size_t _capacity;
         std::mutex _mutex;
-        
+
         std::list<std::pair<std::string, std::shared_ptr<ImageAsset>>> _list;
         std::unordered_map<std::string, decltype(_list.begin())> _map;
     };

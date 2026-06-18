@@ -11,6 +11,7 @@
 
 namespace ei::mimgs
 {
+    // 运行时自定义异常类
     class ProcessingException : public std::runtime_error
     {
     public:
@@ -94,6 +95,7 @@ namespace ei::mimgs
         virtual void execute(IContext &context, const OperatorParams &params) = 0;
 
     protected:
+        // 参数多态向下转型转换工具方法
         template <typename T>
         const T &CastParams(const OperatorParams &params) const
         {

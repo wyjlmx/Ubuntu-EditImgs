@@ -30,12 +30,13 @@ namespace ei::mimgs
 
     void LRUImageCache::putCapacity(const std::string &key, std::shared_ptr<ImageAsset> asset)
     {
-        if(!asset) return;
+        if (!asset)
+            return;
 
         std::lock_guard<std::mutex> lock(_mutex);
         auto it = _map.find(key);
 
-        if(it != _map.end())
+        if (it != _map.end())
         {
             it->second->second = asset;
             _list.splice(_list.begin(), _list, it->second);
@@ -54,5 +55,15 @@ namespace ei::mimgs
 
         _map.clear();
         _list.clear();
+    }
+
+    void LRUImageCache::evict()
+    {
+        while (_list.size() > _capacity)
+        {
+            auto last = _list.back();
+            _map.erase(last.first);
+            _list.pop_back();
+        }
     }
 }
