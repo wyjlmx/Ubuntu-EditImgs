@@ -69,21 +69,65 @@ namespace ei::mimgs
 
                 std::string cacheKey = params.GetCacheSignature();
                 auto &cache = LRUImageCache::getInstance();
-                auto cacheAsset = cache.getCapacity();
-                if(cacheAsset)
+                auto cacheAsset = cache.getCapacity(cacheKey);
+                if (cacheAsset)
                 {
                     outputs[params.outputKey] = cacheAsset;
                     ilog("Images::execute: Cache hit for key: {}", cacheKey);
                     return true;
                 }
 
-                class ContextImpl : public IContext {};
+                class ContextImpl : public IContext
+                {
+                };
+                ContextImpl context;
+
+                for (const auto &[key, asset] : inputs)
+                {
+                    context.setAsset(asset);
+                }
+
+                Pipeline pipeline;
+                pipeline.execute(context, params);
+
+                auto finalAsset = context.getAsset(params.outputKey);
+                if (!finalAsset)
+                {
+                    throw ProcessingException("Images::execute: Pipeline finished but output key '" + params.outputKey + "' was not found in context.");
+                }
+
+                cache.putCapacity(cacheKey, finalAsset);
+
+                outputs[params.outputKey] = finalAsset;
+                return true;
             }
-            catch(const std::exception& e)
+            catch (const std::exception &ex)
             {
-                std::cerr << e.what() << '\n';
+                elog("Images::execute error: {}", ex.what());
+                return false;
             }
-            
         }
     };
+
+    Images::~Images() = default;
+
+    bool Images::execute(const PipelineParams &params,
+                         const std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &inputs,
+                         std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &outputs)
+    {
+        if (!_impl)
+            _impl = std::make_unique<Impl>();
+
+        return _impl->execute(params, inputs, outputs);
+    }
+
+    void Images::clearCache()
+    {
+        LRUImageCache::getInstance().clearCapacity();
+    }
+
+    void Images::setCacheCapacity(size_t capacity)
+    {
+        LRUImageCache::getInstance().setCapacity(capacity);
+    }
 }

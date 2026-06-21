@@ -1,9 +1,14 @@
-// #define DoMain
-#define DoTest
+#define DoMain
+// #define DoTest
 
 #ifdef DoMain
+
+#include "mimgs/Mimgs.hpp"
+
 int main()
 {
+
+
     return 0;
 }
 

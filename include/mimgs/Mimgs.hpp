@@ -12,7 +12,7 @@
 #endif
 
 #include "mimgs/interfaces/IImages.hpp"
-#include "common/Common.hpp"
+#include "mimgs/common/Common.hpp"
 
 #include <vector>
 #include <string>
