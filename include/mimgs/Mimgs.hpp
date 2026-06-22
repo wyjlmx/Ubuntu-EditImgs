@@ -11,8 +11,8 @@
 #define MIMGS_API __attribute__((visibility("default")))
 #endif
 
+#include "mimgs/types/EImages.hpp"
 #include "mimgs/interfaces/IImages.hpp"
-// #include "mimgs/common/Common.hpp"
 
 #include <vector>
 #include <string>

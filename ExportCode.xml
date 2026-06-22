@@ -2299,7 +2299,15 @@ virtual void setCacheCapacity(size_t capacity) = 0;
 </file>
 
 <file path="include/mimgs/types/EImages.hpp">
-
+enum class PixelFormat
+⋮----
+struct ImageAsset
+⋮----
+ImageAsset(std::string_view asset_id, uint32_t w, uint32_t h, PixelFormat fmt)
+⋮----
+ImageAsset(const ImageAsset &) = delete;
+⋮----
+ImageAsset(ImageAsset &&) noexcept = default;
 </file>
 
 <file path="include/mimgs/Mimgs.hpp">
@@ -2359,16 +2367,6 @@ static inline void write(const LogLevel &level, const std::source_location &loca
 class ProcessingException : public std::runtime_error
 ⋮----
 explicit ProcessingException(const std::string &msg)
-⋮----
-enum class PixelFormat
-⋮----
-struct ImageAsset
-⋮----
-ImageAsset(std::string_view asset_id, uint32_t w, uint32_t h, PixelFormat fmt)
-⋮----
-ImageAsset(const ImageAsset &) = delete;
-⋮----
-ImageAsset(ImageAsset &&) noexcept = default;
 ⋮----
 struct OperatorParams
 ⋮----
@@ -2828,6 +2826,8 @@ target_include_directories(main PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 </file>
 
 <file path="source/main.cpp">
+std::shared_ptr<ei::mimgs::ImageAsset> LoadLocalImage(const std::string& filePath, const std::string& assetId)
+⋮----
 int main()
 ⋮----
 void TaskT1(size_t id)
@@ -2871,6 +2871,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 
 # 3. 规范输出路径 (避免编译产物污染源码目录)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
