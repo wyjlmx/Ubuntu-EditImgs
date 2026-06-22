@@ -12,21 +12,54 @@
 #endif
 
 #include "mimgs/interfaces/IImages.hpp"
-#include "mimgs/common/Common.hpp"
+// #include "mimgs/common/Common.hpp"
 
 #include <vector>
 #include <string>
 #include <memory>
+#include <unordered_map>
+#include <variant>
+#include <cstdint>
 
 namespace ei::mimgs
 {
-    struct MIMGS_API PipelineParams : public OperatorParams
+    struct ScaleStep
     {
-        std::vector<std::string> inputKey;
-        std::vector<std::shared_ptr<OperatorParams>> steps; // 直接存放 ScaleParams / RotateParams 的智能指针
+        std::string inputKey;
+        size_t tarWidth{0};
+        size_t tarHeight{0};
+    };
 
-        void Validate() const override;
-        std::string GetCacheSignature() const override;
+    struct RotateStep
+    {
+        std::string inputKey;
+        float angle{0.0f};
+    };
+
+    struct PuzzleStep
+    {
+        std::vector<std::string> inputKeys;
+        uint32_t rows{0};
+        uint32_t cols{0};
+        uint32_t cellWidth{0};
+        uint32_t cellHeight{0};
+        uint32_t padding{0};
+        std::vector<uint8_t> bgColor{0, 0, 0, 0};
+    };
+
+    // 统一管道步骤包装器
+    struct PipelineStep
+    {
+        std::string outputKey;
+        std::variant<ScaleStep, RotateStep, PuzzleStep> params;
+    };
+
+    // 顶级流水线任务参数结构体：完全采用标准库类型，解除对 OperatorParams 的继承
+    struct MIMGS_API PipelineParams
+    {
+        std::string outputKey;             // 最终输出资产标识
+        std::vector<std::string> inputKey; // 初始输入的源图像标识列表
+        std::vector<PipelineStep> steps;   // 顺序执行的管道步骤
     };
 
     class MIMGS_API Images : public IImages

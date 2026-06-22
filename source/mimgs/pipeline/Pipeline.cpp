@@ -7,11 +7,11 @@
 
 namespace ei::mimgs
 {
-    void execute(IContext &context, const PipelineParams &params)
+    void Pipeline::execute(IContext &context, const std::vector<std::shared_ptr<OperatorParams>> &steps)
     {
         auto &registry = OperatorRegistry::getInstance();
 
-        for(const auto &stepParams : params.steps)
+        for(const auto &stepParams : steps)
         {
             if(!stepParams)
                 throw ProcessingException("Pipeline::execute: Encountered null step parameters.");

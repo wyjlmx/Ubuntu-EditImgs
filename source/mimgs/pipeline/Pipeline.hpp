@@ -1,19 +1,12 @@
 #ifndef PIPELINE_HPP
 #define PIPELINE_HPP
+
 #include "common/Common.hpp"
 #include <memory>
 #include <vector>
 
 namespace ei::mimgs
 {
-    struct PipelineParams;
-
-    struct PipelineStep
-    {
-        std::string opName;
-        std::unique_ptr<OperatorParams> params;
-    };
-
     class Pipeline
     {
     public:
@@ -23,7 +16,7 @@ namespace ei::mimgs
         Pipeline(const Pipeline &) = delete;
         Pipeline &operator=(const Pipeline &) = delete;
 
-        void execute(IContext &context, const PipelineParams &params);
+        void execute(IContext &context, const std::vector<std::shared_ptr<OperatorParams>> &steps);
     };
 }
 
