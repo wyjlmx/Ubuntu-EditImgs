@@ -65,7 +65,7 @@ namespace ei::mimgs
     class MIMGS_API Images : public IImages
     {
     public:
-        Images() = default;
+        Images();
         ~Images() override;
 
         bool execute(const PipelineParams &params, const std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &inputs, std::unordered_map<std::string, std::shared_ptr<ImageAsset>> &outputs) override;

@@ -6,6 +6,8 @@ project(EditImgs
     LANGUAGES CXX
 )
 
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)
+
 # 2. 全局 C++ 标准及编译器属性
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -34,6 +36,15 @@ set(PROJECT_PUBLIC_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # 7. 引入子目录
 add_subdirectory(source)
+
+add_executable(main source/main.cpp)
+target_link_libraries(main PRIVATE mimgs mlog ${OpenCV_LIBS})
+
+# 确保 main 包含头文件路径
+target_include_directories(main PRIVATE 
+    ${PROJECT_PUBLIC_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS}
+)
 
 # 8.使生成的可执行文件/动态库在运行时能够通过“相对路径”找到同目录下的依赖库，从而实现跨机器的便携式部署（无需将库拷贝到系统的 /usr/lib 等目录下）。
 set(CMAKE_SKIP_BUILD_RPATH FALSE)

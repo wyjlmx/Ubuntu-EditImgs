@@ -193,6 +193,7 @@ namespace ei::mimgs
     };
 
     // --- Images 门面外壳函数实现 ---
+    Images::Images() = default;
     Images::~Images() = default;
 
     bool Images::execute(const PipelineParams &params,

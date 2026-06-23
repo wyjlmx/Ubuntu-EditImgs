@@ -5,7 +5,7 @@
 
 #include "mimgs/Mimgs.hpp"
 #include "mimgs/types/EImages.hpp"
-#include "mlog/Log.hpp" 
+#include "mlog/Log.hpp"
 
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -15,7 +15,7 @@
 #include <cstring>
 
 // 辅助函数：读取本地图片并转化为 SDK 通用的 ImageAsset 内存资产
-std::shared_ptr<ei::mimgs::ImageAsset> LoadLocalImage(const std::string& filePath, const std::string& assetId)
+std::shared_ptr<ei::mimgs::ImageAsset> LoadLocalImage(const std::string &filePath, const std::string &assetId)
 {
     // 1. 使用 OpenCV 读取磁盘图片（保留原始通道，包括透明度）
     cv::Mat img = cv::imread(filePath, cv::IMREAD_UNCHANGED);
@@ -72,13 +72,13 @@ int main()
         ilog("=======================================================");
 
         // 自定义你的本地图片路径（可放置在项目根目录下，用相对或绝对路径读取）
-        std::string localImagePath = "/app/image.png"; 
+        std::string localImagePath = "/app/image.png";
 
         // 1. 替代原有的 mock 纯色内存分配，直接从本地磁盘加载真实图片
         ilog("[Client] 正在从磁盘载入图像: {}", localImagePath);
         auto realInputAsset = LoadLocalImage(localImagePath, "origin_canvas");
-        ilog("[Client] 图像载入成功. 分辨率: {}x{}, 通道数: {}", 
-             realInputAsset->width, realInputAsset->height, 
+        ilog("[Client] 图像载入成功. 分辨率: {}x{}, 通道数: {}",
+             realInputAsset->width, realInputAsset->height,
              (realInputAsset->format == ei::mimgs::PixelFormat::RGBA8888 ? 4 : 3));
 
         // 2. 构建输入黑板资产字典
@@ -87,8 +87,8 @@ int main()
 
         // 3. 自由声明任务流水线参数
         ei::mimgs::PipelineParams pipelineConfig;
-        pipelineConfig.inputKey = {"origin_canvas"}; 
-        pipelineConfig.outputKey = "final_studio_artifact"; 
+        pipelineConfig.inputKey = {"origin_canvas"};
+        pipelineConfig.outputKey = "final_studio_artifact";
 
         // 步骤一：配置缩放算子 (示例：将原图强转缩放到 400x400)
         ei::mimgs::PipelineStep firstStep;
@@ -96,8 +96,7 @@ int main()
         firstStep.params = ei::mimgs::ScaleStep{
             .inputKey = "origin_canvas",
             .tarWidth = 400,
-            .tarHeight = 400
-        };
+            .tarHeight = 400};
         pipelineConfig.steps.push_back(firstStep);
 
         // 步骤二：配置旋转算子 (将缩放后的产物顺时针旋转 45 度)
@@ -105,8 +104,7 @@ int main()
         secondStep.outputKey = "final_studio_artifact";
         secondStep.params = ei::mimgs::RotateStep{
             .inputKey = "thumb_half_size",
-            .angle = 45.0f
-        };
+            .angle = 45.0f};
         pipelineConfig.steps.push_back(secondStep);
 
         // 4. 实例化 SDK 门面类并调用执行
@@ -128,9 +126,35 @@ int main()
                 ilog(">>> 成功提取最终图像资产信息 <<<");
                 ilog(" 资产标识 (ID)  : {}", finalResult->id);
                 ilog(" 最终分辨率宽高 : {} x {}", finalResult->width, finalResult->height);
-                ilog(" 内存指针首地址 : {}", static_cast<void*>(finalResult->data.get()));
-                
-                // 提示：你也可以在这里利用 OpenCV 将 finalResult->data 写回本地磁盘查看效果
+                ilog(" 内存指针首地址 : {}", static_cast<void *>(finalResult->data.get()));
+
+                // 1. 将 SDK 契约的裸指针包装回 cv::Mat
+                int cvType = (finalResult->format == ei::mimgs::PixelFormat::RGBA8888) ? CV_8UC4 : CV_8UC3;
+                cv::Mat outMat(finalResult->height, finalResult->width, cvType, finalResult->data.get());
+
+                // 2. 极其关键的通道转换：SDK 内部是 RGB/RGBA，而 OpenCV 写入磁盘要求是 BGR/BGRA
+                cv::Mat saveMat;
+                if (finalResult->format == ei::mimgs::PixelFormat::RGBA8888)
+                {
+                    cv::cvtColor(outMat, saveMat, cv::COLOR_RGBA2BGRA);
+                }
+                else
+                {
+                    cv::cvtColor(outMat, saveMat, cv::COLOR_RGB2BGR);
+                }
+
+                // 3. 写入 Docker 挂载的目录
+                std::string outputPath = "/app/output_final.png";
+                bool isSaved = cv::imwrite(outputPath, saveMat);
+
+                if (isSaved)
+                {
+                    ilog("[Client] 🎉 图片已成功物理保存至: {}", outputPath);
+                }
+                else
+                {
+                    elog("[Client] ❌ 图片物理保存失败，请检查路径权限。");
+                }
             }
             else
             {
