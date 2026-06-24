@@ -1,5 +1,8 @@
 # 使用 Ubuntu 26.04 LTS 官方基础镜像以确保长期支持与最新工具链
-FROM ubuntu:26.04
+# FROM ubuntu:26.04
+
+# 直接使用 ROS 2 官方镜像（以最新的 Jazzy 版本为例，基于 Ubuntu 24.04）
+FROM ros:jazzy-ros-base
 
 # 避免安装过程中的交互式选择提示
 ENV DEBIAN_FRONTEND=noninteractive
@@ -25,6 +28,9 @@ RUN mkdir -p /var/run/sshd /etc/ssh/sshd_config.d && \
     sed -i 's/^root:[^:]*:/root:$1$root$9gr5KxwuEdiI80GtIzd.U0:/' /etc/shadow && \
     sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
     echo "PermitRootLogin yes" > /etc/ssh/sshd_config.d/root-login.conf
+
+# 自动 source ROS 2 的环境变量
+RUN echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> /root/.bashrc
 
 # 设置容器内的默认工作目录
 WORKDIR /app
