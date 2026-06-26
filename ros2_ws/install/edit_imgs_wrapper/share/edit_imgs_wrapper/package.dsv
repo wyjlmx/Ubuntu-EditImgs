@@ -1,0 +1,8 @@
+source;share/edit_imgs_wrapper/hook/cmake_prefix_path.ps1
+source;share/edit_imgs_wrapper/hook/cmake_prefix_path.dsv
+source;share/edit_imgs_wrapper/hook/cmake_prefix_path.sh
+source;share/edit_imgs_wrapper/local_setup.bash
+source;share/edit_imgs_wrapper/local_setup.dsv
+source;share/edit_imgs_wrapper/local_setup.ps1
+source;share/edit_imgs_wrapper/local_setup.sh
+source;share/edit_imgs_wrapper/local_setup.zsh

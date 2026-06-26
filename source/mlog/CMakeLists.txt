@@ -37,3 +37,13 @@ set_target_properties(mlog PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${MLOG_OUTPUT_DIR}"
 )
 
+# 5. 添加 Install (安装) 规则
+install(TARGETS mlog
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+# 暴露日志的头文件
+install(DIRECTORY ${PROJECT_PUBLIC_INCLUDE_DIR}/mlog
+    DESTINATION include
+)

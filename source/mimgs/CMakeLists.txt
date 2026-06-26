@@ -45,3 +45,14 @@ set_target_properties(mimgs PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${MIMAGES_OUTPUT_DIR}"
 )
 
+# 5. 添加 Install (安装) 规则，将核心资产发布到系统级目录
+install(TARGETS mimgs
+    LIBRARY DESTINATION lib       # Linux 下将 .so 拷贝到 /usr/local/lib
+    RUNTIME DESTINATION bin       # Windows 兼容：将 .dll 拷贝到 bin
+)
+
+# 将给外部使用的头文件（IImages.hpp, Mimgs.hpp 等）暴露出去
+install(DIRECTORY ${PROJECT_PUBLIC_INCLUDE_DIR}/mimgs
+    DESTINATION include           # 拷贝到 /usr/local/include/mimgs
+)
+
